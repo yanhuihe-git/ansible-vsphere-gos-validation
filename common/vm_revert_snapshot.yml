@@ -37,13 +37,18 @@
 # revert_result.failed is false not true. So here use
 # revert_result.changed to check whether reverting snapshot failed
 - name: "Handle revert snasphot failure"
-  when: revert_result.changed is undefined or not revert_result.changed
+  when: >-
+    (revert_result.failed is defined and revert_result.failed) or
+    (revert_result.changed is undefined or not revert_result.changed)
   block:
     - name: "Check there is error message about snasphot not existing"
       ansible.builtin.set_fact:
         snapshot_not_exists_error: >-
          {{ revert_result.msg is match(".*does not have any snapshots to revert to.") | bool or
-            revert_result.msg is match("Couldn't find any snapshots with specified name.*") | bool }}
+            revert_result.msg is match("Couldn't find any snapshots with specified name.*") | bool or
+            revert_result.msg is match(".*Snapshot '.*' not found.*") | bool or
+            revert_result.msg is match(".*snapshot.*not found.*") | bool or
+            revert_result.msg is match(".*does not exist.*") | bool }}
       when:
         - revert_result.msg is defined
         - revert_result.msg
