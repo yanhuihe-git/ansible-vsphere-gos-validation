@@ -71,6 +71,25 @@ if [ ! -d "/usr/local/etc/pkg/repos" ]; then
 fi
 echo 'FreeBSD-kmods: { enabled: no }' > /usr/local/etc/pkg/repos/FreeBSD-kmods.conf
 
+# On 15.2 BETA1/BETA2 amd64, kmods_quarterly can provide modules built for a newer kernel.
+# Use the regular ports repository for Tools and its kernel-module dependency.
+tools_pkg_repo=""
+case "${machtype}:$(freebsd-version -u)" in
+    amd64:15.2-BETA1|amd64:15.2-BETA2)
+        tools_pkg_repo="FreeBSD-ports"
+        ;;
+esac
+
+install_freebsd_package()
+{
+    if [ "$1" = "open-vm-tools-nox11" ] && [ -n "$tools_pkg_repo" ]; then
+        echo "Installing $1 and its dependencies from $tools_pkg_repo" > /dev/ttyu0
+        env ASSUME_ALWAYS_YES=YES pkg install -y -r "$tools_pkg_repo" "$1"
+    else
+        env ASSUME_ALWAYS_YES=YES pkg install -y "$1"
+    fi
+}
+
 # Different packages between the 32bit image and 64bit image
 # The open-vm-tools is not installed by default
 packages_to_install="bash sudo wget curl e2fsprogs iozone lsblk python open-vm-tools-nox11"
@@ -89,7 +108,7 @@ if [ -f "/dist/packages/repos/FreeBSD_install_cdrom.conf" ]; then
     for package_to_install in $packages_to_install
     do
         echo "Install package $package_to_install ..." > /dev/ttyu0
-        env ASSUME_ALWAYS_YES=YES pkg install -y $package_to_install > /dev/ttyu0 2>&1
+        install_freebsd_package "$package_to_install" > /dev/ttyu0 2>&1
         ret=$?
         if [ $ret -eq 0 ]
         then 
@@ -114,7 +133,7 @@ if [ "$failed_packages" != "" ]; then
         until [ $ret -eq 0 ] || [ $try_count -ge 10 ]
         do
             echo "Install package $package_to_install (try $try_count time) ..." > /dev/ttyu0
-            env ASSUME_ALWAYS_YES=YES pkg install -y $package_to_install > /dev/ttyu0 2>&1
+            install_freebsd_package "$package_to_install" > /dev/ttyu0 2>&1
             ret=$?
             try_count=$((try_count+1))
             if [ $ret -eq 0 ]; then
